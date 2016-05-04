@@ -1,0 +1,124 @@
+---
+- name: Add apt-key
+  apt_key: id={{ apt_key_id }} keyserver={{ apt_key_server }} state=present
+
+- name: Add mesosphere repo
+  apt_repository: repo='deb {{ mesosphere_apt_url }} {{ DISTRO }} {{ CODENAME }} main' state=present
+
+- name: install mesos
+  apt: pkg=mesos state=present update_cache=yes
+
+- name: update /etc/hosts
+  template: src=hosts.j2 dest=/etc/hosts backup=yes
+  when: update_hosts == "yes"
+  tags:
+    - hosts
+
+- name: myid var
+  set_fact: myid={{ myid + 1 }}
+  tags:
+    - myid
+
+- name: myid
+  lineinfile: dest=/etc/zookeeper/conf/myid regexp="^[0-9]*" line="{{ myid }}"
+  when master_or_slave = "master"
+  tags:
+    - myid
+
+- name: set zoo.cfg.template
+  template: src=zoo.cfg.j2 dest=/etc/zookeeper/conf/zoo.cfg.template backup=yes
+  when: master_or_slave == "master"
+  tags:
+    - zoo.cfg
+
+- name: Add lines in zoo.cfg.template to zoo.cfg
+  blockinfile:
+    dest: /etc/zookeeper/conf/zoo.cfg
+    block: |
+	{% for host in groups['masters'] %}
+	server.{{ loop.index }}={{ hostvars[host]['ansible_eth0']['ipv4']['address'] }}:2888:3888
+	{% endfor %}
+  when: master_or_slave == "master"
+  tags:
+    - zoo.cfg
+
+#  shell: "cat /etc/zookeeper/conf/zoo.cfg.template >> /etc/zookeeper/conf/zoo.cfg"
+#  when: master_or_slave == "master"
+#  tags:
+#    - zoo.cfg
+
+- name: zookeeper systemd
+  service: name=zookeeper state=started
+  when: master_or_slave == "master"
+  tags:
+    - zk.started
+
+- name: Define zk masters in mesos
+  set_fact: zk_masters="{% for host in groups['masters'] %}{{ hostvars[host]['ansible_eth0']['ipv4']['address'] }}:2181{% if not loop.last %},{% endif %}{% endfor %}"
+  tags:
+    - mesos.zk
+
+- name: /etc/mesos/zk
+  replace: dest=/etc/mesos/zk regexp='localhost' replace="{{ zk_masters }}"
+  tags:
+    - mesos.zk
+
+- name: 'set quorum: a number greater than # of masters divided by 2'
+  set_fact: number_of_masters="{{(groups['masters']|length/2)|round|int}}"
+  when: master_or_slave == "master"
+  tags:
+    - quorum
+
+- name: update quorum on masters
+  lineinfile: dest=/etc/mesos-master/quorum regexp="^[0-9]*" line="{{ number_of_masters }}"
+  when: master_or_slave == "master"
+  tags:
+    - quorum
+
+- name: stop mesos-slave on masters
+  service: name=mesos-slave state=stopped
+  when: master_or_slave == "master"
+  tags:
+    - mesos-master
+
+- name: disable mesos-slave on masters
+  service: name=mesos-slave enabled=no
+  when: master_or_slave == "master"
+  tags:
+    - mesos-master
+
+- name: restart mesos-master
+  service: name=mesos-master state=restarted
+  when: master_or_slave == "master"
+  tags:
+    - mesos-master
+
+- name: stop mesos-master on slaves
+  service: name=mesos-master state=stopped
+  when: master_or_slave == "slave"
+  tags:
+    - mesos-slave
+
+- name: disable mesos-master on masters
+  service: name=mesos-master enabled=no
+  when: master_or_slave == "slave"
+  tags:
+    - mesos-slave
+
+- name: restart mesos-slave
+  service: name=mesos-slave state=restarted
+  when: master_or_slave == "slave"
+  tags:
+    - mesos-slave
+
+- name: mesos-slave override
+  lineinfile: dest=/etc/init/mesos-slave.override regexp=* line="manual"
+  when: master_or_slave == "master"
+
+- name: mesos-master override
+  lineinfile: dest=/etc/init/mesos-master.override regexp=* line="manual"
+  when: master_or_slave == "slave"
+
+- name: disable zk
+  lineinfile: dest=/etc/init/zookeeper.override regexp=* line="manual"
+  when: master_or_slave == "slave"

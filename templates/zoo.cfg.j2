@@ -1,0 +1,3 @@
+{% for host in groups['masters'] %}
+server.{{ loop.index }}={{ hostvars[host]['ansible_eth0']['ipv4']['address'] }}:2888:3888
+{% endfor %}
