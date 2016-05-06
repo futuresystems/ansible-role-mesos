@@ -3,7 +3,12 @@
   apt_key: id={{ apt_key_id }} keyserver={{ apt_key_server }} state=present
 
 - name: Add mesosphere repo
-  apt_repository: repo='deb {{ mesosphere_apt_url }}/{{ DISTRO }} {{ CODENAME }} main' state=present
+  apt_repository: repo='deb {{ mesosphere_apt_url }}/{{ DISTRO }} {{ CODENAME }} main' state=absent
+  tags:
+   - repo
+
+- name: Add mesosphere repo
+  apt_repository: repo='deb {{ mesosphere_apt_url }}{{ DISTRO }} {{ CODENAME }} main' state=present
   tags:
    - repo
 
@@ -23,7 +28,7 @@
 
 - name: myid
   lineinfile: dest=/etc/zookeeper/conf/myid regexp="^[0-9]*" line="{{ myid }}"
-  when: master_or_slave = "master"
+  when: master_or_slave == "master"
   tags:
     - myid
 
