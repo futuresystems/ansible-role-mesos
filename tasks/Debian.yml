@@ -3,7 +3,9 @@
   apt_key: id={{ apt_key_id }} keyserver={{ apt_key_server }} state=present
 
 - name: Add mesosphere repo
-  apt_repository: repo='deb {{ mesosphere_apt_url }} {{ DISTRO }} {{ CODENAME }} main' state=present
+  apt_repository: repo='deb {{ mesosphere_apt_url }}/{{ DISTRO }} {{ CODENAME }} main' state=present
+  tags:
+   - repo
 
 - name: install mesos
   apt: pkg=mesos state=present update_cache=yes
@@ -21,7 +23,7 @@
 
 - name: myid
   lineinfile: dest=/etc/zookeeper/conf/myid regexp="^[0-9]*" line="{{ myid }}"
-  when master_or_slave = "master"
+  when: master_or_slave = "master"
   tags:
     - myid
 
@@ -31,21 +33,22 @@
   tags:
     - zoo.cfg
 
-- name: Add lines in zoo.cfg.template to zoo.cfg
-  blockinfile:
-    dest: /etc/zookeeper/conf/zoo.cfg
-    block: |
-	{% for host in groups['masters'] %}
-	server.{{ loop.index }}={{ hostvars[host]['ansible_eth0']['ipv4']['address'] }}:2888:3888
-	{% endfor %}
-  when: master_or_slave == "master"
-  tags:
-    - zoo.cfg
-
-#  shell: "cat /etc/zookeeper/conf/zoo.cfg.template >> /etc/zookeeper/conf/zoo.cfg"
+#- name: Add lines in zoo.cfg.template to zoo.cfg
+#  blockinfile:
+#    dest: /etc/zookeeper/conf/zoo.cfg
+#    block: |
+#	{% for host in groups['masters'] %}
+#	server.{{ loop.index }}={{ hostvars[host]['ansible_eth0']['ipv4']['address'] }}:2888:3888
+#	{% endfor %}
 #  when: master_or_slave == "master"
 #  tags:
 #    - zoo.cfg
+
+- name: Add lines in zoo.cfg.template to zoo.cfg
+  shell: "cat /etc/zookeeper/conf/zoo.cfg.template >> /etc/zookeeper/conf/zoo.cfg"
+  when: master_or_slave == "master"
+  tags:
+    - zoo.cfg
 
 - name: zookeeper systemd
   service: name=zookeeper state=started
