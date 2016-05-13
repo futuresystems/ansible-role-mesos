@@ -22,7 +22,7 @@
     - hosts
 
 - name: myid var
-  set_fact: myid={{ myid + 1 }}
+  set_fact: myid="{{ myid | int + 1 }}"
   tags:
     - myid
 
@@ -67,7 +67,7 @@
     - mesos.zk
 
 - name: /etc/mesos/zk
-  replace: dest=/etc/mesos/zk regexp='localhost' replace="{{ zk_masters }}"
+  replace: dest=/etc/mesos/zk regexp='localhost:2181' replace="{{ zk_masters }}"
   tags:
     - mesos.zk
 
@@ -120,13 +120,13 @@
     - mesos-slave
 
 - name: mesos-slave override
-  lineinfile: dest=/etc/init/mesos-slave.override regexp=* line="manual"
+  lineinfile: dest=/etc/init/mesos-slave.override line="manual" create=yes state=present
   when: master_or_slave == "master"
 
 - name: mesos-master override
-  lineinfile: dest=/etc/init/mesos-master.override regexp=* line="manual"
+  lineinfile: dest=/etc/init/mesos-master.override line="manual" create=yes  state=present
   when: master_or_slave == "slave"
 
 - name: disable zk
-  lineinfile: dest=/etc/init/zookeeper.override regexp=* line="manual"
+  lineinfile: dest=/etc/init/zookeeper.override line="manual" create=yes state=present
   when: master_or_slave == "slave"

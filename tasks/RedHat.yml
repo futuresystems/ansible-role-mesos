@@ -49,7 +49,7 @@
     - mesos.zk
 
 - name: /etc/mesos/zk
-  replace: dest=/etc/mesos/zk regexp='localhost' replace="{{ zk_masters }}"
+  replace: dest=/etc/mesos/zk regexp='localhost:2181' replace="{{ zk_masters }}"
   tags:
     - mesos.zk
 
